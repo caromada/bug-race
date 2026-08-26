@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bug Race</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <h1>🏁 Bug Race</h1>
+    <p class="tagline">Pick your bug, place your bet, and hope it doesn't stop to smell the flowers.</p>
+  </header>
+
+  <main>
+    <section class="panel" id="setup-panel">
+      <h2>Race Setup</h2>
+
+      <div id="lane-config">
+        <!-- lane rows get built by script.js -->
+      </div>
+
+      <fieldset class="speed-picker">
+        <legend>Race Speed</legend>
+        <label><input type="radio" name="speed" value="slow"> Slow</label>
+        <label><input type="radio" name="speed" value="normal" checked> Normal</label>
+        <label><input type="radio" name="speed" value="fast"> Fast</label>
+      </fieldset>
+
+      <p class="msg warning" id="icon-warning" hidden>⚠️ Two lanes have the same bug. They'll race anyway, but it might get confusing.</p>
+      <p class="msg error" id="name-error" hidden>❌ Two bugs can't share a name. Give each one its own.</p>
+    </section>
+
+    <section class="panel" id="track-panel">
+      <h2>The Track <span class="hint">— pick who you think will win</span></h2>
+
+      <div id="track">
+        <div id="countdown"></div>
+        <!-- lanes get built by script.js -->
+      </div>
+
+      <div class="race-controls">
+        <button id="start-btn">Start Race!</button>
+        <p class="msg" id="race-msg"></p>
+      </div>
+    </section>
+
+    <section class="panel" id="stats-panel">
+      <h2>Session Stats</h2>
+      <p>Races run: <strong id="race-count">0</strong></p>
+      <table id="stats-table">
+        <thead>
+          <tr><th>Lane</th><th>Bug</th><th>Races</th><th>Wins</th><th>Losses</th></tr>
+        </thead>
+        <tbody>
+          <!-- filled in by script.js -->
+        </tbody>
+      </table>
+    </section>
+  </main>
+
+  <footer>
+    <p>Built with plain HTML, CSS and JavaScript — no libraries, no frameworks.</p>
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+</html>
