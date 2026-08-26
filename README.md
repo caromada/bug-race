@@ -2,7 +2,7 @@
 
 A retro arcade browser game where four pixel-art bugs race across a Pac-Man style track and you try to guess the winner. Built with plain HTML, CSS and JavaScript — no frameworks, no animation libraries, no image or audio files, no build step.
 
-**[Play it here](https://danielguzman.github.io/bug-race/)** *(update this link after enabling GitHub Pages)*
+**[Play it here](https://caromada.github.io/bug-race/)**
 
 ## How to play
 
