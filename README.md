@@ -20,6 +20,7 @@ The winner throws a dance party under a blinking WINNER! tag. The losers flip on
 - Three speed settings — each bug gets a random speed within the chosen range, plus a bit of per-frame wobble so races stay unpredictable to the end
 - One bet per race via the lane radio buttons: your pick lights up gold, a live preview shows exactly what it pays, it clears after every finish, and you get an error if you try to start without one
 - Every race ends in photo-finish slow motion — the world drops to 35% speed for the run to the line, a PHOTO FINISH! banner blinks, and a camera flash fires as the winner crosses
+- FINISH CAM instant replay: the last 1.6 seconds of every race re-play from the finish-line camera's point of view — dedicated head-on sprites crawl straight at the lens down a perspective track, legs scrambling faster as they close in, until the camera fires and freezes a photo with the winner's name and race time (auto-plays after each race, 📷 button to rewatch, click to skip)
 - Tournament mode: two semifinals feed a final, benched lanes gray out between rounds, and the champion gets a track-wide disco party, a longer victory jingle, and a CHAMPION! tag
 - Winners celebrate with a chunky dance (regular wins get disco lights on their own lane)
 - Credit changes float up off the bank readout as green +N / red -N popups, and the numbers do a little jump
@@ -70,4 +71,4 @@ python3 -m http.server 8000
 
 - Two-player betting with separate banks
 - An 8-bug bracket with quarterfinals
-- Replay of the photo finish from the camera's point of view
+- Saving the finish-cam photo as a downloadable image

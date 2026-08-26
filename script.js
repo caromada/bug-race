@@ -95,6 +95,91 @@ const SPRITES = {
   },
 };
 
+// Head-on versions of each bug for the finish cam, where they crawl straight
+// at the lens. Same palettes as the side views.
+const FRONT_SPRITES = {
+  ladybug: [
+    [
+      "......rrrr......",
+      "....rrrrrrrr....",
+      "...rrrkrrkrrr...",
+      "ll.rrrrkkrrrr.ll",
+      "..lrrkrkkrkrrl..",
+      "...rrrrkkrrrr...",
+      "ll.rrrkrrkrrr.ll",
+      "..l.rrrrrrrr.l..",
+      ".....hhhhhh.....",
+      "....hhwhhwhh....",
+      ".....hhhhhh.....",
+    ],
+    [
+      "......rrrr......",
+      "....rrrrrrrr....",
+      "...rrrkrrkrrr...",
+      "..lrrrrkkrrrrl..",
+      "ll.rrkrkkrkrr.ll",
+      "...rrrrkkrrrr...",
+      "..lrrrkrrkrrrl..",
+      "ll..rrrrrrrr..ll",
+      ".....hhhhhh.....",
+      "....hhwhhwhh....",
+      ".....hhhhhh.....",
+    ],
+  ],
+  cricket: [
+    [
+      "..l..........l..",
+      "...l........l...",
+      "....l......l....",
+      "....gggggggg....",
+      "...ggwggggwgg...",
+      "....gggggggg....",
+      ".dd.gggggggg.dd.",
+      ".d..gggggggg..d.",
+      ".dd.gggggggg.dd.",
+      "....g.g..g.g....",
+      "...l.l....l.l...",
+    ],
+    [
+      "...l........l...",
+      "..l..........l..",
+      "....l......l....",
+      "....gggggggg....",
+      "...ggwggggwgg...",
+      "....gggggggg....",
+      ".d..gggggggg..d.",
+      ".dd.gggggggg.dd.",
+      ".d..gggggggg..d.",
+      "....g.g..g.g....",
+      "..l.l......l.l..",
+    ],
+  ],
+  spider: [
+    [
+      ".l..l....l..l...",
+      "l..l......l..l..",
+      "....pppppp......",
+      "..pppppppppp....",
+      ".ppwpwppwpwpp...",
+      "..pppppppppp....",
+      "....pppppp......",
+      "l..l......l..l..",
+      ".l..l....l..l...",
+    ],
+    [
+      "l..l......l..l..",
+      ".l..l....l..l...",
+      "....pppppp......",
+      "..pppppppppp....",
+      ".ppwpwppwpwpp...",
+      "..pppppppppp....",
+      "....pppppp......",
+      ".l..l....l..l...",
+      "l..l......l..l..",
+    ],
+  ],
+};
+
 const BUGS = [
   { id: "ladybug", label: "Ladybug" },
   { id: "cricket", label: "Cricket" },
@@ -176,9 +261,11 @@ const highScoreBodyEl = document.querySelector("#highscore-table tbody");
 // ---------------------------------------------------------------- sprites
 
 // Turn a text-grid frame pair into an <svg>. Horizontal runs of the same
-// color collapse into one rect to keep the DOM light.
-function makeSprite(bugId) {
-  const { palette, frames } = SPRITES[bugId];
+// color collapse into one rect to keep the DOM light. Pass front=true for
+// the head-on finish-cam view.
+function makeSprite(bugId, front = false) {
+  const { palette } = SPRITES[bugId];
+  const frames = front ? FRONT_SPRITES[bugId] : SPRITES[bugId].frames;
   const svg = document.createElementNS(SVG_NS, "svg");
   svg.setAttribute("viewBox", `0 0 ${frames[0][0].length} ${frames[0].length}`);
   svg.setAttribute("shape-rendering", "crispEdges");
@@ -442,7 +529,9 @@ function randBetween(min, max) {
 }
 
 function startRace() {
-  if (racing) return;
+  if (racing || replaying) return;
+  clearTimeout(replayTimer); // a new race trumps a queued auto-replay
+  replayBtn.disabled = true;
 
   const racers = racersNow();
   const pick = document.querySelector('input[name="winner-pick"]:checked');
@@ -620,6 +709,7 @@ function runCountdown(onGo) {
 function beginRace() {
   showRaceMsg("THEY'RE OFF!");
   for (const lane of racersNow()) lane.bugEl.classList.add("running");
+  recording = { frames: [], racers: racersNow().map((l) => l.index), t: 0 };
   startWaka();
   lastFrame = performance.now();
   requestAnimationFrame(raceFrame);
@@ -662,6 +752,18 @@ function raceFrame(now) {
     }
   }
 
+  // keep a rolling recording of the closing stretch for the finish cam
+  if (recording) {
+    recording.t += dt;
+    recording.frames.push({ t: recording.t, p: racers.map((l) => l.progress) });
+    while (
+      recording.frames.length > 2 &&
+      recording.frames[0].t < recording.t - RECORD_WINDOW
+    ) {
+      recording.frames.shift();
+    }
+  }
+
   // the run to the line always plays out in photo-finish slow motion
   if (!winner && timeScale === 1 && lead > 0.86) enterSlowMo();
 
@@ -670,6 +772,121 @@ function raceFrame(now) {
   } else {
     requestAnimationFrame(raceFrame);
   }
+}
+
+// ---------------------------------------------------------------- finish cam
+
+// The last stretch of every race is recorded and replayed from the finish
+// line camera's point of view: bugs charge head-on at the lens, growing as
+// they close in, until the camera fires and freezes the winning moment.
+
+const RECORD_WINDOW = 1.6; // seconds of race kept in the rolling buffer
+const REPLAY_SPEED = 0.55; // replays run at just over half speed
+
+const replayBtn = document.getElementById("replay-btn");
+let recording = null; // rolling buffer while a race runs
+let replay = null; // the finished race's clip
+let replaying = false;
+let replayTimer = null;
+let snapTimer = null;
+let fcEl = null;
+
+function playReplay() {
+  if (racing || replaying || !replay || replay.frames.length < 2) return;
+  replaying = true;
+  playTone(660, 0, 0.07);
+  playTone(880, 0.08, 0.07);
+
+  fcEl = document.createElement("div");
+  fcEl.className = "finishcam";
+  fcEl.innerHTML =
+    '<div class="fc-ground"></div>' +
+    '<div class="fc-line" style="--a:-46deg"></div>' +
+    '<div class="fc-line" style="--a:-21deg"></div>' +
+    '<div class="fc-line" style="--a:0deg"></div>' +
+    '<div class="fc-line" style="--a:21deg"></div>' +
+    '<div class="fc-line" style="--a:46deg"></div>' +
+    '<div class="fc-finish"></div>' +
+    '<span class="fc-title blink">&#9679; INSTANT REPLAY</span>' +
+    '<span class="fc-caption"></span>';
+
+  const bugs = replay.racers.map((idx) => {
+    const wrap = document.createElement("div");
+    wrap.className = "fc-bug crawling";
+    wrap.appendChild(makeSprite(lanes[idx].bugId, true));
+    fcEl.appendChild(wrap);
+    return { wrap, idx };
+  });
+
+  fcEl.addEventListener("click", endReplay); // click to skip
+  trackEl.appendChild(fcEl);
+
+  const frames = replay.frames;
+  const t0 = frames[0].t;
+  const tEnd = frames[frames.length - 1].t;
+  const begun = performance.now();
+
+  function fcFrame(now) {
+    if (!replaying || !fcEl) return;
+    const rt = t0 + ((now - begun) / 1000) * REPLAY_SPEED;
+
+    // find the two samples around rt and blend between them
+    let i = frames.findIndex((f) => f.t >= rt);
+    if (i === -1) i = frames.length - 1;
+    const b = frames[i];
+    const a = frames[Math.max(0, i - 1)];
+    const span = Math.max(b.t - a.t, 0.0001);
+    const mix = Math.min(Math.max((rt - a.t) / span, 0), 1);
+
+    const w = fcEl.clientWidth;
+    const h = fcEl.clientHeight;
+
+    bugs.forEach((bug, bi) => {
+      const p = a.p[bi] + (b.p[bi] - a.p[bi]) * mix;
+      // progress 1 = right at the lens; ease so the final rush hits hard
+      const near = Math.pow(Math.min(p, 1), 2.1);
+      const spread = (bug.idx - 1.5) / 1.5; // -1 .. 1 across the lanes
+      const x = w / 2 + spread * (w * 0.06 + near * w * 0.42);
+      const y = h * 0.36 + near * h * 0.5;
+      const scale = 0.3 + near * 3.2;
+      bug.wrap.style.zIndex = 20 + Math.round(near * 50);
+      // legs scramble faster the closer they get to the lens
+      bug.wrap.style.setProperty("--crawl", `${(0.22 - near * 0.13).toFixed(3)}s`);
+      bug.wrap.style.transform =
+        `translate(${x}px, ${y}px) translate(-50%, -50%) scale(${scale})`;
+    });
+
+    if (rt >= tEnd) {
+      snapPhoto();
+      return;
+    }
+    requestAnimationFrame(fcFrame);
+  }
+  requestAnimationFrame(fcFrame);
+}
+
+function snapPhoto() {
+  if (!fcEl) return;
+  playShutterSound();
+  fcEl.classList.add("photo");
+  fcEl.querySelector(".fc-caption").textContent =
+    `${displayName(lanes[replay.winnerIdx])} WINS · ${replay.time.toFixed(2)}s`;
+
+  const flash = document.createElement("span");
+  flash.className = "photo-flash";
+  flash.addEventListener("animationend", () => flash.remove());
+  fcEl.appendChild(flash);
+
+  snapTimer = setTimeout(endReplay, 1700);
+}
+
+function endReplay() {
+  clearTimeout(snapTimer);
+  if (fcEl) {
+    fcEl.remove();
+    fcEl = null;
+  }
+  replaying = false;
 }
 
 function enterSlowMo() {
@@ -763,6 +980,19 @@ function finishRace(winner) {
   save.racesAllTime++;
   stopWaka();
   exitSlowMo();
+
+  // bank the clip and queue the finish cam
+  replay = {
+    frames: recording.frames,
+    racers: recording.racers,
+    winnerIdx: winner.index,
+    time: recording.t,
+  };
+  recording = null;
+  replayBtn.hidden = false;
+  replayBtn.disabled = false;
+  clearTimeout(replayTimer);
+  replayTimer = setTimeout(playReplay, 900);
 
   const racers = racersNow();
   const pickedIndex = Number(
@@ -1054,6 +1284,7 @@ renderHighScores();
 lanes.forEach(layDots); // dress the track before the first race
 startBtn.addEventListener("click", startRace);
 coinBtn.addEventListener("click", insertCoin);
+replayBtn.addEventListener("click", playReplay);
 document
   .querySelectorAll('input[name="mode"]')
   .forEach((radio) =>
