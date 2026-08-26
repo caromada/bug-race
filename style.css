@@ -40,8 +40,23 @@ header h1 {
   letter-spacing: 4px;
 }
 
+.scorebar {
+  margin: 1.2rem 0 0;
+  color: #e8e8f0;
+  font-size: 10px;
+  letter-spacing: 2px;
+}
+
+.scorebar #credits {
+  color: #ffcc00;
+}
+
+.scorebar #hi-score {
+  color: #00e5ff;
+}
+
 .tagline {
-  margin: 1rem 0 0;
+  margin: 0.8rem 0 0;
   color: #00e5ff;
   font-size: 10px;
   letter-spacing: 2px;
@@ -261,17 +276,35 @@ input[type="radio"] {
 }
 
 .pick {
-  flex: 0 0 54px;
+  flex: 0 0 58px;
   height: 100%;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 0.3rem;
+  gap: 2px;
   background: #10106a;
   color: #ffcc00;
-  font-size: 13px;
+  font-size: 12px;
   cursor: pointer;
   border-right: 3px solid #2121de;
+}
+
+/* your bet lights up gold */
+.pick:has(input:checked) {
+  background: #ffcc00;
+  color: #05050c;
+  box-shadow: inset 0 0 12px rgba(255, 255, 255, 0.4);
+}
+
+/* this lane's payout multiplier, rerolled every race */
+.odds {
+  font-size: 8px;
+  color: #00e5ff;
+}
+
+.pick:has(input:checked) .odds {
+  color: #05050c;
 }
 
 .runway {
@@ -299,6 +332,36 @@ input[type="radio"] {
 
 .dot.eaten {
   visibility: hidden;
+}
+
+/* the power pellet — grab it for a speed burst */
+.pellet {
+  position: absolute;
+  top: 50%;
+  width: 14px;
+  height: 14px;
+  margin-top: -7px;
+  background: #ffb8ae;
+  border-radius: 50%;
+  box-shadow: 0 0 10px rgba(255, 184, 174, 0.8);
+  pointer-events: none;
+  animation: blink 0.5s steps(1) infinite;
+}
+
+.pellet.eaten {
+  visibility: hidden;
+  animation: none;
+}
+
+/* a bug running hot on pellet power */
+.bug.boosted {
+  animation: boost-flash 0.12s steps(1) infinite;
+}
+
+@keyframes boost-flash {
+  0%   { filter: brightness(1.8) drop-shadow(0 0 8px #ffcc00); }
+  50%  { filter: none; }
+  100% { filter: brightness(1.8) drop-shadow(0 0 8px #ffcc00); }
 }
 
 .bug-wrap {
@@ -459,6 +522,31 @@ input[type="radio"] {
   cursor: not-allowed;
 }
 
+/* the coin slot appears when you're out of credits */
+#coin-btn {
+  font: inherit;
+  font-size: 11px;
+  letter-spacing: 2px;
+  padding: 0.8rem 1.2rem;
+  border: none;
+  border-radius: 4px;
+  background: #ffcc00;
+  color: #05050c;
+  cursor: pointer;
+  box-shadow: 0 4px 0 #8a6d00, 0 0 14px rgba(255, 204, 0, 0.5);
+}
+
+#coin-btn:active {
+  transform: translateY(4px);
+  box-shadow: 0 0 0 #8a6d00;
+}
+
+.bet-note {
+  font-size: 8px;
+  color: #8a8aa8;
+  letter-spacing: 1px;
+}
+
 /* ---------- stats ---------- */
 
 #stats-panel p {
@@ -470,22 +558,30 @@ input[type="radio"] {
   color: #ffcc00;
 }
 
-#stats-table {
+#stats-panel h3 {
+  margin: 1.4rem 0 0;
+  font-size: 11px;
+  color: #ffcc00;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+
+.score-table {
   width: 100%;
   border-collapse: collapse;
   margin-top: 0.6rem;
   font-size: 9px;
 }
 
-#stats-table th,
-#stats-table td {
+.score-table th,
+.score-table td {
   border: 2px solid #16169a;
   padding: 0.5rem 0.6rem;
   text-align: center;
   letter-spacing: 1px;
 }
 
-#stats-table th {
+.score-table th {
   background: #10106a;
   color: #ffcc00;
 }

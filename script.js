@@ -112,20 +112,58 @@ const SPEED_RANGES = {
 
 const CONFETTI_COLORS = ["#ff3b30", "#30e850", "#00e5ff", "#ffcc00", "#c85cff", "#ff8f1f"];
 
+// the betting economy
+const BET_COST = 10;
+const COIN_VALUE = 100; // what INSERT COIN buys you
+const ODDS_CHOICES = [2, 3, 4, 5]; // per-lane payout multipliers, rerolled each race
+
+// the power pellet
+const BOOST_DURATION = 1.1; // seconds
+const BOOST_MULTIPLIER = 1.65;
+
+const STORAGE_KEY = "bug-race-save";
+
 const lanes = []; // { bugId, name, speed, progress, stats, ...dom refs }
 let racesRun = 0;
 let racing = false;
 let lastFrame = 0;
 
+// credits, all-time races and the high-score table survive page reloads.
+// localStorage can throw in private windows, so every touch is wrapped.
+function loadSave() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch {
+    // fall through to a fresh save
+  }
+  return null;
+}
+
+const save = loadSave() || { credits: COIN_VALUE, racesAllTime: 0, highScores: [] };
+
+function persistSave() {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(save));
+  } catch {
+    // no storage available — the game still works, it just forgets
+  }
+}
+
 const laneConfigEl = document.getElementById("lane-config");
 const trackEl = document.getElementById("track");
 const countdownEl = document.getElementById("countdown");
 const startBtn = document.getElementById("start-btn");
+const coinBtn = document.getElementById("coin-btn");
 const raceMsgEl = document.getElementById("race-msg");
 const iconWarningEl = document.getElementById("icon-warning");
 const nameErrorEl = document.getElementById("name-error");
+const creditsEl = document.getElementById("credits");
+const hiScoreEl = document.getElementById("hi-score");
 const raceCountEl = document.getElementById("race-count");
+const allTimeCountEl = document.getElementById("all-time-count");
 const statsBodyEl = document.querySelector("#stats-table tbody");
+const highScoreBodyEl = document.querySelector("#highscore-table tbody");
 
 // ---------------------------------------------------------------- sprites
 
@@ -180,7 +218,10 @@ function buildLanes() {
       progress: 0,
       x: 0,
       dustTimer: 0,
+      boostTimer: 0,
       dots: [],
+      pellet: null,
+      odds: 2,
       stats: { races: 0, wins: 0, losses: 0 },
     };
 
@@ -248,7 +289,15 @@ function buildTrackLane(lane) {
   radio.type = "radio";
   radio.name = "winner-pick";
   radio.value = lane.index;
-  pick.append(radio, document.createTextNode(String(lane.index + 1)));
+
+  const number = document.createElement("span");
+  number.textContent = lane.index + 1;
+
+  const odds = document.createElement("span");
+  odds.className = "odds";
+
+  pick.append(radio, number, odds);
+  lane.oddsEl = odds;
 
   const runway = document.createElement("div");
   runway.className = "runway";
@@ -350,21 +399,70 @@ function startRace() {
   ensureAudio(); // grab the audio context while we still count as a user gesture
   playStartJingle();
 
+  save.credits -= BET_COST; // pay to play
+  persistSave();
+  updateBank();
+
   document.querySelectorAll(".winner-tag").forEach((tag) => tag.remove());
 
   for (const lane of lanes) {
     lane.progress = 0;
     lane.x = 0;
     lane.dustTimer = 0;
+    lane.boostTimer = 0;
     lane.speed = randBetween(min, max);
-    lane.bugEl.classList.remove("winner", "loser");
+    lane.bugEl.classList.remove("winner", "loser", "boosted");
     // quicker bugs flick their legs faster
     lane.bugEl.style.setProperty("--step", `${(0.035 / lane.speed).toFixed(3)}s`);
     layDots(lane);
     moveBug(lane);
   }
+  layPellet();
 
   runCountdown(beginRace);
+}
+
+// one blinking power pellet lands in a random lane each race — first bug to
+// reach it gets a short speed burst
+function layPellet() {
+  document.querySelectorAll(".pellet").forEach((p) => p.remove());
+  for (const lane of lanes) lane.pellet = null;
+
+  const lane = lanes[Math.floor(Math.random() * lanes.length)];
+  const width = lane.runwayEl.clientWidth;
+  const x = randBetween(width * 0.35, width * 0.7);
+
+  const el = document.createElement("span");
+  el.className = "pellet";
+  el.style.left = `${x}px`;
+  lane.runwayEl.appendChild(el);
+  lane.pellet = { el, x, taken: false };
+}
+
+// fresh payout odds for every lane, shown in the pick column
+function rollOdds() {
+  for (const lane of lanes) {
+    lane.odds = ODDS_CHOICES[Math.floor(Math.random() * ODDS_CHOICES.length)];
+    lane.oddsEl.textContent = `×${lane.odds}`;
+  }
+}
+
+function updateBank() {
+  creditsEl.textContent = save.credits;
+  hiScoreEl.textContent = save.highScores[0]?.payout ?? 0;
+  allTimeCountEl.textContent = save.racesAllTime;
+
+  const broke = save.credits < BET_COST;
+  coinBtn.hidden = !broke;
+  if (!racing) startBtn.disabled = broke;
+}
+
+function insertCoin() {
+  save.credits += COIN_VALUE;
+  persistSave();
+  playCoinSound();
+  updateBank();
+  showRaceMsg(`+${COIN_VALUE} CREDITS. PLACE YOUR BET!`, "success");
 }
 
 // a trail of pac-dots for each bug to munch through
@@ -426,7 +524,13 @@ function raceFrame(now) {
   for (const lane of lanes) {
     // small per-frame wobble so the race isn't decided at the starting gun
     const wobble = randBetween(0.75, 1.25);
-    lane.progress += lane.speed * dt * wobble;
+    const boost = lane.boostTimer > 0 ? BOOST_MULTIPLIER : 1;
+    lane.progress += lane.speed * boost * dt * wobble;
+
+    if (lane.boostTimer > 0) {
+      lane.boostTimer -= dt;
+      if (lane.boostTimer <= 0) lane.bugEl.classList.remove("boosted");
+    }
 
     if (lane.progress >= 1) {
       lane.progress = 1;
@@ -465,6 +569,16 @@ function moveBug(lane) {
     lane.dots[lane.dotIndex].el.classList.add("eaten");
     lane.dotIndex++;
   }
+
+  // grab the power pellet if this lane has one
+  const pellet = lane.pellet;
+  if (racing && pellet && !pellet.taken && pellet.x < lane.x + 34) {
+    pellet.taken = true;
+    pellet.el.classList.add("eaten");
+    lane.boostTimer = BOOST_DURATION;
+    lane.bugEl.classList.add("boosted");
+    playPowerSound();
+  }
 }
 
 function spawnDust(lane) {
@@ -500,6 +614,7 @@ function showWinnerTag(lane) {
 function finishRace(winner) {
   racing = false;
   racesRun++;
+  save.racesAllTime++;
   stopWaka();
 
   const pickedIndex = Number(
@@ -507,7 +622,8 @@ function finishRace(winner) {
   );
 
   for (const lane of lanes) {
-    lane.bugEl.classList.remove("running");
+    lane.bugEl.classList.remove("running", "boosted");
+    lane.boostTimer = 0;
     lane.stats.races++;
     if (lane === winner) {
       lane.stats.wins++;
@@ -523,20 +639,42 @@ function finishRace(winner) {
 
   const guessedRight = pickedIndex === winner.index;
   if (guessedRight) {
+    const payout = BET_COST * winner.odds;
+    save.credits += payout;
+    recordHighScore(displayName(winner), winner.odds, payout);
     playWinSound();
-    showRaceMsg(`🏆 ${displayName(winner)} TAKES IT — GREAT CALL!`, "success");
+    showRaceMsg(`🏆 ${displayName(winner)} TAKES IT! +${payout} CREDITS`, "success");
   } else {
     playLoseSound();
     showRaceMsg(
-      `🏆 ${displayName(winner)} WINS. YOUR PICK, ${displayName(lanes[pickedIndex])}, DIDN'T HAVE IT.`,
+      `🏆 ${displayName(winner)} WINS. YOUR PICK, ${displayName(lanes[pickedIndex])}, DIDN'T HAVE IT. -${BET_COST} CREDITS`,
       "error"
     );
   }
 
+  persistSave();
+  rollOdds(); // fresh odds for the next race
+  updateBank();
   renderStats();
+  renderHighScores();
   setConfigDisabled(false);
-  startBtn.disabled = false;
   startBtn.textContent = "START RACE!";
+
+  // one bet per race — clear the pick so the next race needs a fresh one
+  document
+    .querySelectorAll('input[name="winner-pick"]')
+    .forEach((radio) => (radio.checked = false));
+}
+
+function recordHighScore(name, odds, payout) {
+  save.highScores.push({
+    name,
+    odds,
+    payout,
+    date: new Date().toLocaleDateString(),
+  });
+  save.highScores.sort((a, b) => b.payout - a.payout);
+  save.highScores = save.highScores.slice(0, 5);
 }
 
 function setConfigDisabled(disabled) {
@@ -570,6 +708,30 @@ function renderStats() {
     }
     statsBodyEl.appendChild(row);
   }
+}
+
+function renderHighScores() {
+  highScoreBodyEl.innerHTML = "";
+
+  if (save.highScores.length === 0) {
+    const row = document.createElement("tr");
+    const td = document.createElement("td");
+    td.colSpan = 5;
+    td.textContent = "NO SCORES YET — WIN A BET!";
+    row.appendChild(td);
+    highScoreBodyEl.appendChild(row);
+    return;
+  }
+
+  save.highScores.forEach((score, i) => {
+    const row = document.createElement("tr");
+    for (const value of [i + 1, score.name, `×${score.odds}`, score.payout, score.date]) {
+      const td = document.createElement("td");
+      td.textContent = value;
+      row.appendChild(td);
+    }
+    highScoreBodyEl.appendChild(row);
+  });
 }
 
 // ---------------------------------------------------------------- sound
@@ -657,10 +819,27 @@ function playLoseSound() {
   playTone(98, 0.95, 0.25, "square", 0.09);
 }
 
+// power pellet grabbed: a rising zap
+function playPowerSound() {
+  playSlide(220, 990, 0, 0.3, 0.08);
+  playTone(1319, 0.28, 0.12, "square", 0.08);
+}
+
+// the classic coin drop
+function playCoinSound() {
+  ensureAudio();
+  playTone(988, 0, 0.08);
+  playTone(1319, 0.09, 0.3);
+}
+
 // ---------------------------------------------------------------- go
 
 buildLanes();
 checkDuplicateIcons(); // 4 lanes, 3 bugs — there's always a duplicate at first
+rollOdds();
+updateBank();
 renderStats();
+renderHighScores();
 lanes.forEach(layDots); // dress the track before the first race
 startBtn.addEventListener("click", startRace);
+coinBtn.addEventListener("click", insertCoin);

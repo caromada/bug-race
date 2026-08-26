@@ -12,6 +12,9 @@
 <body>
   <header>
     <h1>BUG RACE</h1>
+    <p class="scorebar">
+      CREDITS <span id="credits">0</span> &middot; HI-SCORE <span id="hi-score">0</span>
+    </p>
     <p class="tagline blink">PLACE YOUR BET &middot; PRESS START</p>
   </header>
 
@@ -44,16 +47,28 @@
 
       <div class="race-controls">
         <button id="start-btn">Start Race!</button>
+        <button id="coin-btn" class="blink" hidden>INSERT COIN</button>
+        <span class="bet-note">10 CREDITS PER RACE &middot; WIN YOUR LANE'S ODDS</span>
         <p class="msg" id="race-msg"></p>
       </div>
     </section>
 
     <section class="panel" id="stats-panel">
       <h2>Session Stats</h2>
-      <p>Races run: <strong id="race-count">0</strong></p>
-      <table id="stats-table">
+      <p>Races this session: <strong id="race-count">0</strong> &middot; All-time: <strong id="all-time-count">0</strong></p>
+      <table id="stats-table" class="score-table">
         <thead>
           <tr><th>Lane</th><th>Bug</th><th>Races</th><th>Wins</th><th>Losses</th></tr>
+        </thead>
+        <tbody>
+          <!-- filled in by script.js -->
+        </tbody>
+      </table>
+
+      <h3>High Scores</h3>
+      <table id="highscore-table" class="score-table">
+        <thead>
+          <tr><th>#</th><th>Bug</th><th>Odds</th><th>Payout</th><th>Date</th></tr>
         </thead>
         <tbody>
           <!-- filled in by script.js -->

@@ -18,14 +18,16 @@ The winner does a victory bounce under a blinking WINNER! tag. The losers flip o
 - Config panel with per-lane bug sprites and names
 - Warning when two lanes use the same bug (they'll still race), and a hard error when two bugs share a name
 - Three speed settings — each bug gets a random speed within the chosen range, plus a bit of per-frame wobble so races stay unpredictable to the end
-- Betting via lane radio buttons, with an error if you try to start without a pick
+- One bet per race via the lane radio buttons: your pick lights up gold, clears after every finish, and you get an error if you try to start without one
 - 3… 2… 1… GO! countdown overlay with beeps synced to each tick
 - Bugs eat a trail of pac-dots as they run, legs flicking in two-frame sprite animation at a rate matched to each bug's speed
 - Start button locks out during a race, along with the config panel
 - Pixel confetti at the finish; winner bounces, losers flip onto their backs
 - All-chiptune audio from the Web Audio API — coin-up jingle at the start, waka-waka while the bugs munch, a level-clear fanfare if your bet hits, and the classic arcade death-glide if it doesn't
 - CRT scanline overlay and neon maze styling for the full cabinet feel
-- Session stats: total races, plus races/wins/losses per bug
+- A betting economy: races cost 10 credits, every lane rolls fresh payout odds (×2 to ×5) before each race, and going broke summons a blinking INSERT COIN button
+- A power pellet lands in a random lane each race — the bug that grabs it flashes gold and gets a speed burst
+- Session stats (races, wins, losses per bug) plus persistent credits, all-time race count, and a top-5 high score table saved to localStorage
 
 ## The sprites are drawn in code
 
@@ -62,6 +64,6 @@ python3 -m http.server 8000
 
 ## Ideas I might add later
 
-- Power pellet that gives a random bug a speed burst
-- Odds/payout system so betting actually costs something
-- Persist stats to localStorage as a high-score table
+- Photo-finish slow motion when two bugs hit the line together
+- A tournament mode with brackets across multiple races
+- Two-player betting with separate banks
