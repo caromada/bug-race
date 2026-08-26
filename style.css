@@ -222,6 +222,10 @@ input[type="radio"] {
   color: #30e850;
 }
 
+.msg.stage {
+  color: #00e5ff;
+}
+
 /* ---------- track ---------- */
 
 #track {
@@ -256,6 +260,12 @@ input[type="radio"] {
   animation: pop 0.6s steps(5);
 }
 
+/* stage names ("SEMIFINAL 1") are longer than "GO!" */
+#countdown.label {
+  font-size: 1.4rem;
+  letter-spacing: 3px;
+}
+
 @keyframes pop {
   0%   { transform: scale(0.2); opacity: 0; }
   40%  { transform: scale(1.25); opacity: 1; }
@@ -263,6 +273,7 @@ input[type="radio"] {
 }
 
 .lane {
+  position: relative;
   display: flex;
   align-items: center;
   height: 66px;
@@ -437,14 +448,80 @@ input[type="radio"] {
   100% { opacity: 0; transform: translate(-14px, -10px) scale(1.6); }
 }
 
-/* winner does a chunky victory bounce */
+/* the winner throws a dance party */
 .bug.winner {
-  animation: bounce 0.5s steps(6) infinite;
+  animation: dance 0.8s steps(8) infinite;
 }
 
-@keyframes bounce {
-  0%, 100% { transform: translateY(0); }
-  50%      { transform: translateY(-16px); }
+@keyframes dance {
+  0%   { transform: translateY(0) rotate(0deg); }
+  20%  { transform: translateY(-12px) rotate(-22deg); }
+  40%  { transform: translateY(0) rotate(0deg); }
+  60%  { transform: translateY(-12px) rotate(22deg); }
+  80%  { transform: translateY(-4px) rotate(-12deg) scale(1.18); }
+  100% { transform: translateY(0) rotate(0deg); }
+}
+
+/* disco lights — on the winner's lane after a race, on the whole track
+   for a tournament champion */
+.party::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    90deg,
+    rgba(255, 59, 48, 0.22) 0 40px,
+    rgba(0, 229, 255, 0.22) 40px 80px,
+    rgba(255, 204, 0, 0.22) 80px 120px,
+    rgba(200, 92, 255, 0.22) 120px 160px
+  );
+  animation: disco 0.6s steps(4) infinite;
+}
+
+@keyframes disco {
+  0%   { background-position: 0 0; filter: hue-rotate(0deg); }
+  100% { background-position: 160px 0; filter: hue-rotate(180deg); }
+}
+
+/* lanes sitting out a tournament round */
+.lane.benched {
+  opacity: 0.3;
+  filter: grayscale(0.8);
+}
+
+/* photo-finish slow-mo dressing */
+#track.slowmo {
+  filter: saturate(1.5) brightness(1.12);
+}
+
+.photo-tag {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 8;
+  font-size: 12px;
+  letter-spacing: 2px;
+  color: #ffcc00;
+  text-shadow: 2px 2px 0 #b3261e, 0 0 14px rgba(255, 204, 0, 0.8);
+  pointer-events: none;
+}
+
+/* the camera flash as the winner crosses the line */
+.photo-flash {
+  position: absolute;
+  inset: 0;
+  z-index: 9;
+  background: #fff;
+  pointer-events: none;
+  animation: flash-out 0.35s steps(3) forwards;
+}
+
+@keyframes flash-out {
+  0%   { opacity: 0.9; }
+  100% { opacity: 0; }
 }
 
 /* losers flip on their backs and gray out */
@@ -539,6 +616,56 @@ input[type="radio"] {
 #coin-btn:active {
   transform: translateY(4px);
   box-shadow: 0 0 0 #8a6d00;
+}
+
+/* the bank readout next to the start button */
+.bank {
+  position: relative;
+  font-size: 11px;
+  letter-spacing: 1px;
+  color: #e8e8f0;
+}
+
+.bank strong {
+  color: #ffcc00;
+  font-size: 14px;
+}
+
+/* the numbers jump when money moves */
+.bump {
+  display: inline-block;
+  animation: bump 0.45s steps(3);
+}
+
+@keyframes bump {
+  0%   { transform: scale(1); }
+  50%  { transform: scale(1.5); }
+  100% { transform: scale(1); }
+}
+
+/* +N / -N floats up off the bank when credits change */
+.credit-float {
+  position: absolute;
+  left: 50%;
+  top: -8px;
+  font-size: 13px;
+  pointer-events: none;
+  animation: float-up 1.3s steps(9) forwards;
+}
+
+.credit-float.pos {
+  color: #30e850;
+  text-shadow: 0 0 8px rgba(48, 232, 80, 0.8);
+}
+
+.credit-float.neg {
+  color: #ff3b30;
+  text-shadow: 0 0 8px rgba(255, 59, 48, 0.8);
+}
+
+@keyframes float-up {
+  0%   { opacity: 1; transform: translate(-50%, 0); }
+  100% { opacity: 0; transform: translate(-50%, -36px); }
 }
 
 .bet-note {

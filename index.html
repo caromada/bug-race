@@ -33,6 +33,12 @@
         <label><input type="radio" name="speed" value="fast"> Fast</label>
       </fieldset>
 
+      <fieldset class="speed-picker">
+        <legend>Mode</legend>
+        <label><input type="radio" name="mode" value="single" checked> Single Race</label>
+        <label><input type="radio" name="mode" value="tournament"> Tournament</label>
+      </fieldset>
+
       <p class="msg warning" id="icon-warning" hidden>⚠️ Two lanes have the same bug. They'll race anyway, but it might get confusing.</p>
       <p class="msg error" id="name-error" hidden>❌ Two bugs can't share a name. Give each one its own.</p>
     </section>
@@ -48,8 +54,10 @@
       <div class="race-controls">
         <button id="start-btn">Start Race!</button>
         <button id="coin-btn" class="blink" hidden>INSERT COIN</button>
-        <span class="bet-note">10 CREDITS PER RACE &middot; WIN YOUR LANE'S ODDS</span>
+        <span class="bank">BANK <strong id="bank-amount">0</strong></span>
+        <span class="bet-note" id="bet-note"></span>
         <p class="msg" id="race-msg"></p>
+        <p class="msg stage" id="stage-msg"></p>
       </div>
     </section>
 

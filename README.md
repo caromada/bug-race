@@ -11,14 +11,18 @@ A retro arcade browser game where four pixel-art bugs race across a Pac-Man styl
 3. Click a lane number on the track to bet on your winner.
 4. Hit **START RACE!** and watch them munch their way to the finish line.
 
-The winner does a victory bounce under a blinking WINNER! tag. The losers flip onto their backs and gray out, because bugs are dramatic.
+The winner throws a dance party under a blinking WINNER! tag. The losers flip onto their backs and gray out, because bugs are dramatic. Feeling ambitious? Switch to Tournament mode and run a full bracket — two semifinals and a final — to crown a champion.
 
 ## Features
 
 - Config panel with per-lane bug sprites and names
 - Warning when two lanes use the same bug (they'll still race), and a hard error when two bugs share a name
 - Three speed settings — each bug gets a random speed within the chosen range, plus a bit of per-frame wobble so races stay unpredictable to the end
-- One bet per race via the lane radio buttons: your pick lights up gold, clears after every finish, and you get an error if you try to start without one
+- One bet per race via the lane radio buttons: your pick lights up gold, a live preview shows exactly what it pays, it clears after every finish, and you get an error if you try to start without one
+- Every race ends in photo-finish slow motion — the world drops to 35% speed for the run to the line, a PHOTO FINISH! banner blinks, and a camera flash fires as the winner crosses
+- Tournament mode: two semifinals feed a final, benched lanes gray out between rounds, and the champion gets a track-wide disco party, a longer victory jingle, and a CHAMPION! tag
+- Winners celebrate with a chunky dance (regular wins get disco lights on their own lane)
+- Credit changes float up off the bank readout as green +N / red -N popups, and the numbers do a little jump
 - 3… 2… 1… GO! countdown overlay with beeps synced to each tick
 - Bugs eat a trail of pac-dots as they run, legs flicking in two-frame sprite animation at a rate matched to each bug's speed
 - Start button locks out during a race, along with the config panel
@@ -64,6 +68,6 @@ python3 -m http.server 8000
 
 ## Ideas I might add later
 
-- Photo-finish slow motion when two bugs hit the line together
-- A tournament mode with brackets across multiple races
 - Two-player betting with separate banks
+- An 8-bug bracket with quarterfinals
+- Replay of the photo finish from the camera's point of view

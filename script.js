@@ -127,6 +127,12 @@ const lanes = []; // { bugId, name, speed, progress, stats, ...dom refs }
 let racesRun = 0;
 let racing = false;
 let lastFrame = 0;
+let timeScale = 1; // drops below 1 for the photo-finish slow-mo
+let photoTagEl = null;
+
+// tournament bracket: two semifinals feed a final.
+// null means single-race mode.
+let tourney = null;
 
 // credits, all-time races and the high-score table survive page reloads.
 // localStorage can throw in private windows, so every touch is wrapped.
@@ -159,6 +165,8 @@ const raceMsgEl = document.getElementById("race-msg");
 const iconWarningEl = document.getElementById("icon-warning");
 const nameErrorEl = document.getElementById("name-error");
 const creditsEl = document.getElementById("credits");
+const bankEl = document.getElementById("bank-amount");
+const betNoteEl = document.getElementById("bet-note");
 const hiScoreEl = document.getElementById("hi-score");
 const raceCountEl = document.getElementById("race-count");
 const allTimeCountEl = document.getElementById("all-time-count");
@@ -289,6 +297,7 @@ function buildTrackLane(lane) {
   radio.type = "radio";
   radio.name = "winner-pick";
   radio.value = lane.index;
+  radio.addEventListener("change", updateBetPreview);
 
   const number = document.createElement("span");
   number.textContent = lane.index + 1;
@@ -316,6 +325,8 @@ function buildTrackLane(lane) {
   laneEl.append(pick, runway);
   trackEl.appendChild(laneEl);
 
+  lane.laneEl = laneEl;
+  lane.pickRadio = radio;
   lane.runwayEl = runway;
   lane.bugWrapEl = bugWrap;
   lane.bugEl = bug;
@@ -369,6 +380,61 @@ function showRaceMsg(text, kind) {
   raceMsgEl.className = "msg" + (kind ? " " + kind : "");
 }
 
+// ---------------------------------------------------------------- tournament
+
+const stageMsgEl = document.getElementById("stage-msg");
+
+function racersNow() {
+  return tourney ? tourney.matches[tourney.index].map((i) => lanes[i]) : lanes;
+}
+
+function stageName() {
+  return ["SEMIFINAL 1", "SEMIFINAL 2", "THE FINAL"][tourney.index];
+}
+
+function setMode(mode) {
+  if (mode === "tournament") {
+    tourney = { matches: [[0, 1], [2, 3], null], index: 0, winners: [] };
+    prepRound();
+  } else {
+    tourney = null;
+    unbenchAll();
+    updateStageUI();
+  }
+}
+
+// dim the lanes that sit this round out and lock their bet radios
+function prepRound() {
+  const active = tourney.matches[tourney.index];
+  for (const lane of lanes) {
+    const benched = !active.includes(lane.index);
+    lane.laneEl.classList.toggle("benched", benched);
+    lane.pickRadio.disabled = benched;
+    lane.pickRadio.checked = false;
+  }
+  updateStageUI();
+  updateBetPreview();
+}
+
+function unbenchAll() {
+  for (const lane of lanes) {
+    lane.laneEl.classList.remove("benched");
+    lane.pickRadio.disabled = false;
+  }
+}
+
+function updateStageUI() {
+  if (tourney) {
+    const [a, b] = tourney.matches[tourney.index];
+    startBtn.textContent = `START ${stageName()}`;
+    stageMsgEl.textContent =
+      `${stageName()}: ${displayName(lanes[a])} VS ${displayName(lanes[b])}`;
+  } else {
+    startBtn.textContent = "START RACE!";
+    stageMsgEl.textContent = "";
+  }
+}
+
 // ---------------------------------------------------------------- racing
 
 function randBetween(min, max) {
@@ -378,9 +444,14 @@ function randBetween(min, max) {
 function startRace() {
   if (racing) return;
 
+  const racers = racersNow();
   const pick = document.querySelector('input[name="winner-pick"]:checked');
   if (!pick) {
     showRaceMsg("PICK A WINNER FIRST! CLICK A LANE NUMBER.", "error");
+    return;
+  }
+  if (tourney && !racers.some((l) => l.index === Number(pick.value))) {
+    showRaceMsg("THAT BUG SITS THIS RACE OUT — PICK AN ACTIVE LANE.", "error");
     return;
   }
   if (checkDuplicateNames()) {
@@ -402,33 +473,41 @@ function startRace() {
   save.credits -= BET_COST; // pay to play
   persistSave();
   updateBank();
+  showCreditDelta(-BET_COST);
 
   document.querySelectorAll(".winner-tag").forEach((tag) => tag.remove());
+  trackEl.classList.remove("party");
 
   for (const lane of lanes) {
     lane.progress = 0;
     lane.x = 0;
     lane.dustTimer = 0;
     lane.boostTimer = 0;
-    lane.speed = randBetween(min, max);
+    lane.laneEl.classList.remove("party");
     lane.bugEl.classList.remove("winner", "loser", "boosted");
+    moveBug(lane);
+    // spectators don't get a dot trail
+    for (const dot of lane.dots) dot.el.remove();
+    lane.dots = [];
+  }
+  for (const lane of racers) {
+    lane.speed = randBetween(min, max);
     // quicker bugs flick their legs faster
     lane.bugEl.style.setProperty("--step", `${(0.035 / lane.speed).toFixed(3)}s`);
     layDots(lane);
-    moveBug(lane);
   }
-  layPellet();
+  layPellet(racers);
 
   runCountdown(beginRace);
 }
 
-// one blinking power pellet lands in a random lane each race — first bug to
+// one blinking power pellet lands in a random racing lane — first bug to
 // reach it gets a short speed burst
-function layPellet() {
+function layPellet(racers) {
   document.querySelectorAll(".pellet").forEach((p) => p.remove());
   for (const lane of lanes) lane.pellet = null;
 
-  const lane = lanes[Math.floor(Math.random() * lanes.length)];
+  const lane = racers[Math.floor(Math.random() * racers.length)];
   const width = lane.runwayEl.clientWidth;
   const x = randBetween(width * 0.35, width * 0.7);
 
@@ -449,6 +528,7 @@ function rollOdds() {
 
 function updateBank() {
   creditsEl.textContent = save.credits;
+  bankEl.textContent = save.credits;
   hiScoreEl.textContent = save.highScores[0]?.payout ?? 0;
   allTimeCountEl.textContent = save.racesAllTime;
 
@@ -457,11 +537,39 @@ function updateBank() {
   if (!racing) startBtn.disabled = broke;
 }
 
+// a green +N or red -N that floats up off the bank readout
+function showCreditDelta(delta) {
+  const float = document.createElement("span");
+  float.className = "credit-float " + (delta < 0 ? "neg" : "pos");
+  float.textContent = (delta > 0 ? "+" : "") + delta;
+  float.addEventListener("animationend", () => float.remove());
+  bankEl.parentElement.appendChild(float);
+
+  for (const el of [creditsEl, bankEl]) {
+    el.classList.remove("bump");
+    void el.offsetWidth; // restart the animation
+    el.classList.add("bump");
+  }
+}
+
+// tell the player exactly what their current pick pays before they commit
+function updateBetPreview() {
+  const picked = document.querySelector('input[name="winner-pick"]:checked');
+  if (picked) {
+    const lane = lanes[Number(picked.value)];
+    betNoteEl.textContent =
+      `BET ${BET_COST} · WIN ${BET_COST * lane.odds} CREDITS IF LANE ${lane.index + 1} TAKES IT`;
+  } else {
+    betNoteEl.textContent = `${BET_COST} CREDITS PER RACE · PICK A LANE TO SEE YOUR PAYOUT`;
+  }
+}
+
 function insertCoin() {
   save.credits += COIN_VALUE;
   persistSave();
   playCoinSound();
   updateBank();
+  showCreditDelta(COIN_VALUE);
   showRaceMsg(`+${COIN_VALUE} CREDITS. PLACE YOUR BET!`, "success");
 }
 
@@ -481,14 +589,18 @@ function layDots(lane) {
   }
 }
 
-// 3… 2… 1… GO! with a beep on each tick
+// 3… 2… 1… GO! with a beep on each tick. Tournament races lead with the
+// stage name so you know what's on the line.
 function runCountdown(onGo) {
-  const steps = ["3", "2", "1", "GO!"];
+  const steps = tourney
+    ? [stageName(), "3", "2", "1", "GO!"]
+    : ["3", "2", "1", "GO!"];
   countdownEl.classList.add("show");
 
   steps.forEach((step, i) => {
     setTimeout(() => {
       countdownEl.textContent = step;
+      countdownEl.classList.toggle("label", step.length > 3);
       // restart the pop animation for every number
       countdownEl.classList.remove("pop");
       void countdownEl.offsetWidth;
@@ -499,7 +611,7 @@ function runCountdown(onGo) {
         setTimeout(() => countdownEl.classList.remove("show", "pop"), 450);
         onGo();
       } else {
-        playTone(392, 0, 0.15);
+        playTone(step.length > 3 ? 523 : 392, 0, 0.15);
       }
     }, i * 700);
   });
@@ -507,7 +619,7 @@ function runCountdown(onGo) {
 
 function beginRace() {
   showRaceMsg("THEY'RE OFF!");
-  for (const lane of lanes) lane.bugEl.classList.add("running");
+  for (const lane of racersNow()) lane.bugEl.classList.add("running");
   startWaka();
   lastFrame = performance.now();
   requestAnimationFrame(raceFrame);
@@ -516,12 +628,15 @@ function beginRace() {
 function raceFrame(now) {
   if (!racing) return; // guard against a stray frame after the finish
 
-  const dt = Math.min((now - lastFrame) / 1000, 0.1); // cap dt if the tab hiccups
+  // cap dt if the tab hiccups; timeScale drags everything into slow motion
+  const dt = Math.min((now - lastFrame) / 1000, 0.1) * timeScale;
   lastFrame = now;
 
+  const racers = racersNow();
   let winner = null;
+  let lead = 0;
 
-  for (const lane of lanes) {
+  for (const lane of racers) {
     // small per-frame wobble so the race isn't decided at the starting gun
     const wobble = randBetween(0.75, 1.25);
     const boost = lane.boostTimer > 0 ? BOOST_MULTIPLIER : 1;
@@ -536,6 +651,7 @@ function raceFrame(now) {
       lane.progress = 1;
       if (!winner) winner = lane;
     }
+    lead = Math.max(lead, lane.progress);
     moveBug(lane);
 
     // kick up a little dust every so often
@@ -546,11 +662,41 @@ function raceFrame(now) {
     }
   }
 
+  // the run to the line always plays out in photo-finish slow motion
+  if (!winner && timeScale === 1 && lead > 0.86) enterSlowMo();
+
   if (winner) {
     finishRace(winner);
   } else {
     requestAnimationFrame(raceFrame);
   }
+}
+
+function enterSlowMo() {
+  timeScale = 0.35;
+  trackEl.classList.add("slowmo");
+  startWaka(320); // the munching slows down with the world
+
+  photoTagEl = document.createElement("span");
+  photoTagEl.className = "photo-tag blink";
+  photoTagEl.textContent = "PHOTO FINISH!";
+  trackEl.appendChild(photoTagEl);
+}
+
+function exitSlowMo() {
+  timeScale = 1;
+  trackEl.classList.remove("slowmo");
+  if (photoTagEl) {
+    photoTagEl.remove();
+    photoTagEl = null;
+  }
+
+  // the camera fires as the winner crosses
+  const flash = document.createElement("span");
+  flash.className = "photo-flash";
+  flash.addEventListener("animationend", () => flash.remove());
+  trackEl.appendChild(flash);
+  playShutterSound();
 }
 
 function moveBug(lane) {
@@ -616,18 +762,20 @@ function finishRace(winner) {
   racesRun++;
   save.racesAllTime++;
   stopWaka();
+  exitSlowMo();
 
+  const racers = racersNow();
   const pickedIndex = Number(
     document.querySelector('input[name="winner-pick"]:checked').value
   );
 
-  for (const lane of lanes) {
+  for (const lane of racers) {
     lane.bugEl.classList.remove("running", "boosted");
     lane.boostTimer = 0;
     lane.stats.races++;
     if (lane === winner) {
       lane.stats.wins++;
-      lane.bugEl.classList.add("winner");
+      lane.bugEl.classList.add("winner"); // the winner dance
     } else {
       lane.stats.losses++;
       lane.bugEl.classList.add("loser");
@@ -636,12 +784,14 @@ function finishRace(winner) {
 
   spawnConfetti();
   showWinnerTag(winner);
+  throwParty(winner.laneEl);
 
   const guessedRight = pickedIndex === winner.index;
   if (guessedRight) {
     const payout = BET_COST * winner.odds;
     save.credits += payout;
     recordHighScore(displayName(winner), winner.odds, payout);
+    showCreditDelta(payout);
     playWinSound();
     showRaceMsg(`🏆 ${displayName(winner)} TAKES IT! +${payout} CREDITS`, "success");
   } else {
@@ -658,12 +808,59 @@ function finishRace(winner) {
   renderStats();
   renderHighScores();
   setConfigDisabled(false);
-  startBtn.textContent = "START RACE!";
 
   // one bet per race — clear the pick so the next race needs a fresh one
   document
     .querySelectorAll('input[name="winner-pick"]')
     .forEach((radio) => (radio.checked = false));
+
+  if (tourney) {
+    advanceTournament(winner);
+  } else {
+    updateStageUI();
+    updateBetPreview();
+  }
+}
+
+function advanceTournament(winner) {
+  tourney.winners.push(winner.index);
+
+  if (tourney.index === 2) {
+    // that was the final — crown the champion
+    crownChampion(winner);
+    return;
+  }
+
+  tourney.index++;
+  if (tourney.index === 2) tourney.matches[2] = [...tourney.winners];
+  prepRound();
+  stageMsgEl.textContent =
+    `${displayName(winner)} ADVANCES! ${stageMsgEl.textContent}`;
+}
+
+// the full dance party: track-wide disco lights, a longer jingle, and the
+// champion boogying under a CHAMPION! tag
+function crownChampion(winner) {
+  tourney = null;
+  unbenchAll();
+  document.querySelector('input[name="mode"][value="single"]').checked = true;
+
+  trackEl.classList.add("party");
+  spawnConfetti();
+  playChampionJingle();
+
+  const tag = winner.runwayEl.querySelector(".winner-tag");
+  if (tag) tag.textContent = "CHAMPION!";
+
+  updateStageUI();
+  updateBetPreview();
+  stageMsgEl.textContent = `👑 ${displayName(winner)} IS THE CHAMPION! 👑`;
+}
+
+// disco lights on one lane after a regular win
+function throwParty(laneEl) {
+  laneEl.classList.add("party");
+  setTimeout(() => laneEl.classList.remove("party"), 3200);
 }
 
 function recordHighScore(name, odds, payout) {
@@ -792,12 +989,12 @@ function playStartJingle() {
 }
 
 // the waka-waka munching loop while bugs eat their way down the track
-function startWaka() {
+function startWaka(intervalMs = 140) {
   stopWaka();
   wakaId = setInterval(() => {
     playTone(wakaHigh ? 300 : 220, 0, 0.07, "square", 0.05);
     wakaHigh = !wakaHigh;
-  }, 140);
+  }, intervalMs);
 }
 
 function stopWaka() {
@@ -832,14 +1029,33 @@ function playCoinSound() {
   playTone(1319, 0.09, 0.3);
 }
 
+// the camera taking the photo-finish shot
+function playShutterSound() {
+  playTone(1568, 0, 0.04, "square", 0.09);
+  playTone(1245, 0.05, 0.04, "square", 0.09);
+}
+
+// crowning the tournament champion deserves a whole melody
+function playChampionJingle() {
+  [523, 659, 784, 1047, 880, 1047, 1319, 1568].forEach((freq, i) =>
+    playTone(freq, i * 0.13, 0.15, "square", 0.11)
+  );
+}
+
 // ---------------------------------------------------------------- go
 
 buildLanes();
 checkDuplicateIcons(); // 4 lanes, 3 bugs — there's always a duplicate at first
 rollOdds();
 updateBank();
+updateBetPreview();
 renderStats();
 renderHighScores();
 lanes.forEach(layDots); // dress the track before the first race
 startBtn.addEventListener("click", startRace);
 coinBtn.addEventListener("click", insertCoin);
+document
+  .querySelectorAll('input[name="mode"]')
+  .forEach((radio) =>
+    radio.addEventListener("change", () => setMode(radio.value))
+  );
