@@ -544,18 +544,18 @@ input[type="radio"] {
   background: repeating-linear-gradient(180deg, #12123c 0 9px, #0b0b28 9px 18px);
 }
 
-/* lane dividers fanning out from the vanishing point */
-.fc-line {
+/* lane dividers, projected with the same math as the bugs */
+.fc-lines {
   position: absolute;
-  left: 50%;
-  top: 36%;
-  width: 4px;
-  height: 80%;
-  margin-left: -2px;
-  background: #2121de;
-  box-shadow: 0 0 8px rgba(33, 33, 222, 0.7);
-  transform-origin: top center;
-  transform: rotate(var(--a));
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+}
+
+.fc-lines line {
+  stroke: #2121de;
+  stroke-width: 4;
+  filter: drop-shadow(0 0 6px rgba(33, 33, 222, 0.8));
 }
 
 /* the line right under the camera */

@@ -791,6 +791,17 @@ let replayTimer = null;
 let snapTimer = null;
 let fcEl = null;
 
+// One projection for everything in the finish cam scene. spread is the
+// lateral position (-1 left lane .. 1 right lane), near is how close to the
+// lens (0 = horizon). Lane lines and bugs both go through here, so bugs are
+// guaranteed to stay inside their lanes.
+function fcProject(spread, near, w, h) {
+  return {
+    x: w / 2 + spread * (w * 0.06 + near * w * 0.44),
+    y: h * 0.36 + near * h * 0.5,
+  };
+}
+
 function playReplay() {
   if (racing || replaying || !replay || replay.frames.length < 2) return;
   replaying = true;
@@ -801,11 +812,6 @@ function playReplay() {
   fcEl.className = "finishcam";
   fcEl.innerHTML =
     '<div class="fc-ground"></div>' +
-    '<div class="fc-line" style="--a:-46deg"></div>' +
-    '<div class="fc-line" style="--a:-21deg"></div>' +
-    '<div class="fc-line" style="--a:0deg"></div>' +
-    '<div class="fc-line" style="--a:21deg"></div>' +
-    '<div class="fc-line" style="--a:46deg"></div>' +
     '<div class="fc-finish"></div>' +
     '<span class="fc-title blink">&#9679; INSTANT REPLAY</span>' +
     '<span class="fc-caption"></span>';
@@ -820,6 +826,23 @@ function playReplay() {
 
   fcEl.addEventListener("click", endReplay); // click to skip
   trackEl.appendChild(fcEl);
+
+  // draw the five lane dividers with the same projection the bugs use;
+  // needs the overlay in the DOM first so it has a measurable size
+  {
+    const w = fcEl.clientWidth;
+    const h = fcEl.clientHeight;
+    const nearAtBottom = (h - h * 0.36) / (h * 0.5); // where a line leaves the frame
+    let svg = `<svg class="fc-lines" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none">`;
+    for (let b = 0; b <= 4; b++) {
+      const spread = (b - 2) / 1.5; // lane boundaries sit between lane centers
+      const top = fcProject(spread, 0, w, h);
+      const bottom = fcProject(spread, nearAtBottom, w, h);
+      svg += `<line x1="${top.x.toFixed(1)}" y1="${top.y.toFixed(1)}" x2="${bottom.x.toFixed(1)}" y2="${h}"/>`;
+    }
+    svg += "</svg>";
+    fcEl.querySelector(".fc-ground").insertAdjacentHTML("afterend", svg);
+  }
 
   const frames = replay.frames;
   const t0 = frames[0].t;
@@ -845,10 +868,12 @@ function playReplay() {
       const p = a.p[bi] + (b.p[bi] - a.p[bi]) * mix;
       // progress 1 = right at the lens; ease so the final rush hits hard
       const near = Math.pow(Math.min(p, 1), 2.1);
-      const spread = (bug.idx - 1.5) / 1.5; // -1 .. 1 across the lanes
-      const x = w / 2 + spread * (w * 0.06 + near * w * 0.42);
-      const y = h * 0.36 + near * h * 0.5;
-      const scale = 0.3 + near * 3.2;
+      const spread = (bug.idx - 1.5) / 1.5; // -1 .. 1, each lane's center line
+      const { x, y } = fcProject(spread, near, w, h);
+      // size the bug off its lane's width at this depth, so it always fits
+      // between the dividers no matter how wide the window is
+      const laneWidth = (2 / 3) * (w * 0.06 + near * w * 0.44);
+      const scale = Math.max(0.2, (laneWidth * 0.8) / 44);
       bug.wrap.style.zIndex = 20 + Math.round(near * 50);
       // legs scramble faster the closer they get to the lens
       bug.wrap.style.setProperty("--crawl", `${(0.22 - near * 0.13).toFixed(3)}s`);
